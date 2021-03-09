@@ -1,0 +1,76 @@
+version: "3.7"
+services: 
+  haproxy:
+    container_name: haproxy
+    image: dock1100/haproxy-certbot
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - ./conf:/config
+      - ./certs/conf:/etc/letsencrypt
+      - ./certs:/usr/local/etc/haproxy/certs.d
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - haproxy_net
+    logging:
+      driver: json-file
+      options:
+        max-size: "200k"
+        max-file: "7"
+
+  online:
+    image: libreoffice/online:master
+    environment:
+      domain: ${NEXTCLOUD_DOMAIN}
+      username: ${LO_ONLINE_USERNAME}
+      password: ${LO_ONLINE_PASSWORD}
+      extra_params: ${LO_ONLINE_EXTRA_PARAMS}
+      DONT_GEN_SSL_CERT: 1
+    volumes:
+      - config-volume:/etc/loolwsd
+    cap_add:
+      - MKNOD
+    ports:
+      - "9999:9980"
+    restart:
+      unless-stopped
+    networks: 
+      - haproxy_net
+        
+  db:
+    image: mariadb
+    restart: always
+    volumes:
+      - db:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+    networks: 
+      - haproxy_net
+      
+  app:
+    image: nextcloud
+    ports:
+      - 8080:80
+    links:
+      - db
+    volumes:
+      - nextcloud:/var/www/html
+    restart:
+      always
+    networks: 
+      - haproxy_net
+
+networks:
+  haproxy_net:
+
+volumes:
+  nextcloud:
+  db:
+  config-volume:
+
